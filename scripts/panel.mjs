@@ -43,6 +43,7 @@ const USAGE = `ask-panel - ask one question to several logged-in AI web chats at
   node panel.mjs collect              extract answers right now
   node panel.mjs check                instant status of a detached run (no browser)
   node panel.mjs report [--open]      render a run as a standalone HTML page
+                                     add --synthesis <file.md> to lead with your answer
   node panel.mjs probe                per-site selector health (read-only)
   node panel.mjs dump                 raw page text, for debugging selectors
   node panel.mjs archive --from <f>   re-file a saved run.json
@@ -121,9 +122,11 @@ if (cmd === 'report') {
   const src = flag('from', join(homedir(), '.ask-panel', 'last.json'));
   if (!existsSync(src)) { console.error(`no run file at ${src}`); process.exit(2); }
   const payload = JSON.parse(readFileSync(src, 'utf8'));
+  const synFile = flag('synthesis', null);
+  const syn = synFile && existsSync(synFile) ? readFileSync(synFile, 'utf8') : '';
   const dest = flag('out', src.replace(/\.json$/, '') + '.html');
   mkdirSync(dirname(dest), { recursive: true });
-  writeFileSync(dest, renderHtml(payload));
+  writeFileSync(dest, renderHtml(payload, syn));
   console.log(dest);
   if (has('open')) spawnSync('open', [dest]);
   process.exit(0);

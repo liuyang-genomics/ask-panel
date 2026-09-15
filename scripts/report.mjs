@@ -72,10 +72,17 @@ function markdown(src) {
 
 const BADGE = { ok: 'ok', empty: 'bad', error: 'bad', 'no-tab': 'muted' };
 
-export function renderHtml(payload) {
+export function renderHtml(payload, synthesis = '') {
   const results = payload.results || [];
   const good = results.filter((r) => r.status === 'ok' && !r.fallback);
   const when = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
+  // The synthesis is written by the agent, not derived here: no amount of text
+  // processing turns six answers into one. When present it leads, and the
+  // per-site answers demote to evidence underneath it.
+  const lead = synthesis ? `<section class="lead">${markdown(synthesis)}</section>
+<h2 class="sectionhead">What each model said</h2>
+<p class="sectionsub">Evidence for the answer above. Check a claim here before acting on it.</p>` : '';
 
   const cards = results.map((r, i) => {
     const kind = r.fallback ? 'warn' : (BADGE[r.status] || 'muted');
@@ -147,6 +154,13 @@ export function renderHtml(payload) {
   th,td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
   th{background:var(--bg);font-weight:650}
   .none{color:var(--dim);font-style:italic}
+  .lead{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+        border-radius:11px;padding:6px 22px 18px;margin-bottom:30px}
+  .lead h3,.lead h4{font-size:16px;margin:20px 0 7px;font-weight:650}
+  .lead p{margin:10px 0} .lead ul,.lead ol{margin:10px 0;padding-left:21px} .lead li{margin:4px 0}
+  .lead table{font-size:13px}
+  .sectionhead{font-size:15px;margin:0 0 4px;font-weight:650}
+  .sectionsub{color:var(--dim);font-size:12.5px;margin:0 0 16px}
   @media (max-width:700px){ .grid.cols{grid-template-columns:1fr} }
 </style>
 
@@ -160,6 +174,7 @@ export function renderHtml(payload) {
   <button id="theme">Theme</button>
 </div>
 
+${lead}
 <div class="grid cols" id="grid">
 ${cards}
 </div>
