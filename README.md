@@ -1,0 +1,87 @@
+# ask-panel
+
+Ask one question to several AI web chats at once - ChatGPT, Claude, Gemini,
+Grok, DeepSeek, Perplexity - and get every answer back as JSON.
+
+No API keys and no per-token cost: it drives a Chrome you are already signed
+into, over the DevTools Protocol. Six sites in parallel, typically 30-100
+seconds for a short question.
+
+```bash
+node scripts/panel.mjs run "What am I missing about X?" --out /tmp/panel.json
+```
+
+```json
+{
+  "question": "...",
+  "elapsedSec": 29.8,
+  "results": [
+    { "site": "chatgpt", "status": "ok", "chars": 159, "text": "...", "url": "https://..." },
+    { "site": "gemini",  "status": "empty", "why": "answer node present but only 0 chars" }
+  ]
+}
+```
+
+## Why it exists
+
+Comparable tools show you answers side by side. This one is built to feed them
+to an agent that writes a single synthesis, so the design priority is knowing
+**which answers are real**. A site that fails must say so rather than returning
+page furniture that reads like an answer - that is the failure mode that
+quietly poisons a synthesis, and most of the code exists to prevent it.
+
+Every result carries a `status` (`ok` / `empty` / `no-tab` / `error`), plus
+`fallback` when the text came from somewhere less trustworthy than a real
+answer node, and `recovered` when a reload rescued an unrendered response.
+
+## Install
+
+Needs Node 22 or newer (it uses the built-in `WebSocket`). No dependencies.
+
+Start a Chrome with remote debugging, using a **dedicated profile** - an open
+debugging port exposes every cookie and session in whatever profile you point
+it at:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9333 --user-data-dir="$HOME/.ask-panel/chrome" &
+```
+
+Sign in to each site once in that window, leave one tab per site open, then:
+
+```bash
+node scripts/panel.mjs probe
+```
+
+## Usage
+
+```bash
+node scripts/panel.mjs --help
+```
+
+Runs are archived to `~/.ask-panel/runs/` by default, as `run.json` plus a
+readable `answers.md`. Use `--continue` to ask a follow-up in the same threads,
+so each model keeps its own prior answer in context.
+
+Full operating guide, per-site quirks, and troubleshooting: [SKILL.md](SKILL.md).
+
+## Maintenance
+
+Every selector lives in [`scripts/sites.mjs`](scripts/sites.mjs). These are
+private SPAs that reskin without notice, and a reskin breaks exactly one entry
+in that file - fixing it needs a CSS selector, not JavaScript.
+
+```bash
+node scripts/panel.mjs probe               # which selector reads MISSING?
+node scripts/panel.mjs dump --sites <site> # what the page actually shows
+node --test test/                          # unit tests, no browser needed
+```
+
+## Caveats
+
+- **Terms of service.** This automates logged-in consumer accounts. Some
+  providers restrict that. Decide knowingly.
+- **Rate limits.** These are real accounts, usually free tier.
+- **Selectors break.** That is inherent to driving private web UIs, and every
+  comparable tool ships the same warning.
+- It never clicks rating, feedback, consent or upgrade controls, and never
+  re-submits a question to rescue a blank answer.
