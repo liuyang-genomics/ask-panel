@@ -16,8 +16,9 @@
  * Run `node panel.mjs --help` for usage.
  */
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync, readFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir, homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 
 import { SITES } from './sites.mjs';
@@ -39,6 +40,7 @@ const USAGE = `ask-panel - ask one question to several logged-in AI web chats at
   node panel.mjs status               who is still generating
   node panel.mjs wait                 block until all settle, then print JSON
   node panel.mjs collect              extract answers right now
+  node panel.mjs check                instant status of a detached run (no browser)
   node panel.mjs probe                per-site selector health (read-only)
   node panel.mjs dump                 raw page text, for debugging selectors
   node panel.mjs archive --from <f>   re-file a saved run.json
@@ -110,6 +112,32 @@ function emit(payload) {
 const pad = (key) => (SITES[key].label + '          ').slice(0, 11);
 
 // ---------------------------------------------------------------- dispatch
+
+if (cmd === 'check') {
+  // Instant, browser-free status of a detached run. Exists so no agent ever has
+  // a reason to `sleep` waiting on a panel: ask this, get an answer, move on.
+  const out = flag('out', join(homedir(), '.ask-panel', 'last.json'));
+  const log = flag('log', out.replace(/\.json$/, '') + '.log');
+  if (existsSync(out)) {
+    const d = JSON.parse(readFileSync(out, 'utf8'));
+    const rows = (d.results || []).map((r) => `${r.label}=${r.status}${r.fallback ? '(fallback)' : ''}`);
+    console.log(`DONE in ${(d.elapsedSec || 0).toFixed(1)}s | ${rows.join(' ')}`);
+    console.log(`answers: ${out}`);
+    process.exit(0);
+  }
+  const running = spawnSync('pgrep', ['-f', 'panel.mjs (run|ask)'], { encoding: 'utf8' }).stdout.trim()
+    || spawnSync('pgrep', ['-f', 'panel.mjs'], { encoding: 'utf8' }).stdout.trim();
+  const tailLine = existsSync(log)
+    ? (readFileSync(log, 'utf8').trim().split('\n').pop() || '').trim() : 'no log yet';
+  const age = existsSync(log) ? Math.round((Date.now() - statSync(log).mtimeMs) / 1000) : null;
+  if (running) {
+    console.log(`RUNNING | ${tailLine}${age !== null ? ` | log idle ${age}s` : ''}`);
+    if (age !== null && age > 120) console.log('log has been idle over 2 minutes - it may be wedged; check again later or re-run');
+  } else {
+    console.log(`NOT RUNNING and no ${out} - the run died. Last log line: ${tailLine}`);
+  }
+  process.exit(0);
+}
 
 let tabs, missing;
 try {

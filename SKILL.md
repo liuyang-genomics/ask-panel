@@ -58,16 +58,17 @@ It survives the terminal closing, and it archives itself on completion. Check it
 only when the user asks:
 
 ```bash
-tail -3 ~/.ask-panel/last.log          # still going, or finished?
+node $S check --out ~/.ask-panel/last.json
 ```
 
-```bash
-jq -r '.results[] | "\(.site): \(.status)"' ~/.ask-panel/last.json
-```
+`check` is instant and never touches the browser. It prints either
+`DONE in 59.7s | ChatGPT=ok Claude=ok ...` or `RUNNING | <last log line> | log
+idle 3s`, and warns if the log has been idle over two minutes.
 
-If `last.json` does not exist yet, the run is still going. Say so in one line
-and move on - never sleep waiting for it, and never re-run the question to find
-out whether the first one finished.
+**Never `sleep` waiting for a run.** One `check` is the whole interaction: if it
+says RUNNING, say so in one line and do something else. Never re-run the
+question to find out whether the first one finished - that double-posts to the
+user's real account.
 
 ### Follow-up questions
 
