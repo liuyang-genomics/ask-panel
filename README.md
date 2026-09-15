@@ -34,6 +34,58 @@ Every result carries a `status` (`ok` / `empty` / `no-tab` / `error`), plus
 `fallback` when the text came from somewhere less trustworthy than a real
 answer node, and `recovered` when a reload rescued an unrendered response.
 
+## Using it as an agent skill
+
+Install it where your agent looks for skills, then invoke it by name or let it
+trigger from what you say.
+
+```bash
+git clone <this-repo> ~/.claude/skills/ask-panel
+```
+
+Claude Code reads `~/.claude/skills/`; other harnesses differ. One copy can
+serve several agents through symlinks:
+
+```bash
+ln -s ~/.claude/skills/ask-panel ~/.agents/skills/ask-panel
+```
+
+### How to trigger it
+
+**By name**, always reliable:
+
+```
+/ask-panel
+```
+
+**By what you say.** The `description` in `SKILL.md` frontmatter decides this.
+Any of these fire it:
+
+| Say | |
+|---|---|
+| `ask AIs <question>` | the short form |
+| `ask the AIs`, `ask other AIs`, `ask everyone` | |
+| `ask the panel`, `run the panel`, `AI panel` | |
+| `get me a second opinion on this` | |
+| `what do the other models say?` | |
+| `cross-check this answer` | |
+
+**By running it directly**, no agent involved:
+
+```bash
+node ~/.claude/skills/ask-panel/scripts/panel.mjs run "<question>"
+```
+
+### Tuning the trigger
+
+Edit the `description` line in `SKILL.md`. It is the only thing an agent reads
+when deciding whether the skill applies, so it should name the phrases you
+actually use.
+
+Keep the trigger phrases distinctive. A bare word like "ask" will fire on
+almost every message, which is worse than never triggering: name the tool
+("ask AIs", "the panel") rather than the verb alone.
+
 ## Install
 
 Needs Node 22 or newer (it uses the built-in `WebSocket`). No dependencies.
