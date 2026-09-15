@@ -79,8 +79,23 @@ export class Tab {
   close() { try { this.ws.close(); } catch {} }
 }
 
+export class NoBrowserError extends Error {}
+
 export async function targets(port) {
-  const res = await fetch(`http://127.0.0.1:${port}/json/list`);
+  let res;
+  try {
+    res = await fetch(`http://127.0.0.1:${port}/json/list`);
+  } catch (e) {
+    // The commonest first-run failure by far. Without this the raw
+    // ECONNREFUSED escapes the top-level await and the user gets a Node stack
+    // trace instead of the one instruction that would fix it.
+    throw new NoBrowserError(
+      `Cannot reach Chrome on CDP port ${port} (${e.cause?.code || e.message}).\n`
+      + `Start it with:\n`
+      + `  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \\\n`
+      + `    --remote-debugging-port=${port} --user-data-dir="$HOME/.ask-panel/chrome" &\n`
+      + `then sign in to each site and leave one tab per site open. See SKILL.md.`);
+  }
   return (await res.json()).filter((t) => t.type === 'page');
 }
 
@@ -88,7 +103,7 @@ export async function targets(port) {
  * One tab per site. Sites with no open tab are reported separately rather than
  * dropped: five silent results look exactly like a six-site panel otherwise.
  */
-export async function resolveTabs(sites, port, only = []) {
+export async function resolveTabs(sites, port, only = [], { preferThread = false } = {}) {
   const list = await targets(port);
   const picked = {};
   const missing = [];
@@ -96,9 +111,14 @@ export async function resolveTabs(sites, port, only = []) {
     if (only.length && !only.includes(key)) continue;
     const hits = list.filter((t) => site.match.test(t.url));
     if (!hits.length) { missing.push(key); continue; }
-    // Prefer a tab already inside a conversation over one sitting on the
-    // site's landing page, so --continue resumes the thread you were using.
-    picked[key] = hits.find((t) => t.url !== site.newUrl && t.url.length > site.newUrl.length + 4) || hits[0];
+    // Which tab to take depends on what we are about to do with it.
+    // --continue resumes a thread, so prefer a tab already inside one. A fresh
+    // ask navigates the tab away immediately, so prefer a landing-page tab and
+    // leave the user's open conversation where it is.
+    const inThread = (t) => t.url !== site.newUrl && t.url.length > site.newUrl.length + 4;
+    picked[key] = preferThread
+      ? (hits.find(inThread) || hits[0])
+      : (hits.find((t) => !inThread(t)) || hits[0]);
   }
   return { tabs: picked, missing };
 }

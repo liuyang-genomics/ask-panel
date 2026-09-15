@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 
 import { SITES } from './sites.mjs';
-import { resolveTabs, withTab, par } from './cdp.mjs';
+import { resolveTabs, withTab, par, NoBrowserError } from './cdp.mjs';
 import { askSite, probeSite, extractSite, pollSettled } from './ops.mjs';
 import { archiveRun, defaultArchiveDir } from './archive.mjs';
 import { parser, positionalArgs } from './args.mjs';
@@ -111,7 +111,15 @@ const pad = (key) => (SITES[key].label + '          ').slice(0, 11);
 
 // ---------------------------------------------------------------- dispatch
 
-const { tabs, missing } = await resolveTabs(SITES, PORT, ONLY);
+let tabs, missing;
+try {
+  // --continue resumes existing threads, so it wants a tab already in one;
+  // a fresh ask navigates the tab away, so it must not grab a conversation.
+  ({ tabs, missing } = await resolveTabs(SITES, PORT, ONLY, { preferThread: has('continue') }));
+} catch (e) {
+  console.error(e instanceof NoBrowserError ? e.message : `Could not list browser tabs: ${e.message}`);
+  process.exit(2);
+}
 if (!Object.keys(tabs).length) {
   console.error(`No AI tabs found on CDP port ${PORT}.\n`
     + `Start Chrome with --remote-debugging-port=${PORT} and open the sites. See SKILL.md.`);
@@ -174,6 +182,14 @@ if (cmd === 'probe') {
   const out = await par(tabs, (k, t) => extractSite(k, t, st.question, recover));
   if (has('json') || flag('out', null)) emit({ question: st.question, results: withMissing(out) });
   else {
+    // Archive here too: the text and JSON paths must not differ in whether the
+    // answers survive, or `collect` silently breaks the documented promise.
+    if (!has('no-archive')) {
+      try {
+        const dir = archiveRun({ question: st.question, results: withMissing(out) }, ARCHIVE);
+        process.stderr.write(`archived ${dir}\n`);
+      } catch (e) { process.stderr.write(`archive failed: ${e.message}\n`); }
+    }
     for (const r of out) {
       const tag = `${r.status.toUpperCase()}${r.fallback ? ' via fallback - DISTRUST' : ''}`;
       console.log(`\n${'='.repeat(70)}\n## ${r.label}  [${tag}] (${r.via || '-'})\n${'='.repeat(70)}\n${r.text || r.why || ''}`);

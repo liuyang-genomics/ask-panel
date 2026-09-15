@@ -125,3 +125,23 @@ test('markdown flags untrustworthy results and keeps failures visible', () => {
   assert.match(md, /render death/, 'a failed site must stay visible, not be dropped');
   assert.match(md, /no Delta tab open/);
 });
+
+test('two runs of the same question never overwrite each other', async () => {
+  // Regression: the directory name used a minute-resolution timestamp, so a
+  // retry within the same minute resolved to the same directory and silently
+  // destroyed the first run's answers.
+  const { archiveRun } = await import('../scripts/archive.mjs');
+  const { mkdtempSync, readFileSync, readdirSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+
+  const dir = mkdtempSync(join(tmpdir(), 'ask-panel-test-'));
+  const run = (text) => archiveRun({ question: 'same question', results: [{ site: 'x', label: 'X', status: 'ok', text }] }, dir);
+  const first = run('FIRST RUN ANSWER');
+  const second = run('SECOND RUN ANSWER');
+
+  assert.notEqual(first, second, 'each run needs its own directory');
+  assert.equal(readdirSync(dir).filter((f) => f !== 'INDEX.md').length, 2);
+  assert.match(readFileSync(join(first, 'answers.md'), 'utf8'), /FIRST RUN ANSWER/);
+  assert.match(readFileSync(join(second, 'answers.md'), 'utf8'), /SECOND RUN ANSWER/);
+});

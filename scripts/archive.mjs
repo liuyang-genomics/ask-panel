@@ -57,8 +57,13 @@ export function renderMarkdown(payload, when = new Date()) {
 export function archiveRun(payload, archiveDir = defaultArchiveDir()) {
   const q = payload.question || 'untitled';
   const now = new Date();
-  const stamp = now.toISOString().slice(0, 16).replace('T', '_').replace(':', '');
-  const name = `${stamp}-${slugify(q)}`;
+  // Seconds, not minutes: two runs of the same question inside one minute used
+  // to resolve to the same directory and the second silently destroyed the
+  // first. The suffix covers the same-second case rather than trusting it away.
+  const stamp = now.toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '');
+  const base = `${stamp}-${slugify(q)}`;
+  let name = base;
+  for (let n = 2; existsSync(join(archiveDir, name)); n++) name = `${base}-${n}`;
   const dir = join(archiveDir, name);
   mkdirSync(dir, { recursive: true });
 
