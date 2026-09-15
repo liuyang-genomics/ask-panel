@@ -1,5 +1,11 @@
 # ask-panel
 
+> **Status: experimental.** This is a personal test project, published so it can
+> be looked at and borrowed from - not a supported tool. It drives private web
+> UIs through CSS selectors, so it will break when a site reskins. Expect to fix
+> `scripts/sites.mjs` yourself. No warranty, no support, no release process, and
+> the interface may change without notice.
+
 Ask one question to several AI web chats at once - ChatGPT, Claude, Gemini,
 Grok, DeepSeek, Perplexity - and get every answer back as JSON.
 
