@@ -26,6 +26,7 @@ import { resolveTabs, withTab, par, NoBrowserError } from './cdp.mjs';
 import { askSite, probeSite, extractSite, pollSettled } from './ops.mjs';
 import { archiveRun, defaultArchiveDir } from './archive.mjs';
 import { parser, positionalArgs } from './args.mjs';
+import { renderHtml } from './report.mjs';
 
 // ---------------------------------------------------------------- arguments
 
@@ -41,6 +42,7 @@ const USAGE = `ask-panel - ask one question to several logged-in AI web chats at
   node panel.mjs wait                 block until all settle, then print JSON
   node panel.mjs collect              extract answers right now
   node panel.mjs check                instant status of a detached run (no browser)
+  node panel.mjs report [--open]      render a run as a standalone HTML page
   node panel.mjs probe                per-site selector health (read-only)
   node panel.mjs dump                 raw page text, for debugging selectors
   node panel.mjs archive --from <f>   re-file a saved run.json
@@ -112,6 +114,20 @@ function emit(payload) {
 const pad = (key) => (SITES[key].label + '          ').slice(0, 11);
 
 // ---------------------------------------------------------------- dispatch
+
+if (cmd === 'report') {
+  // Render a saved run as a standalone HTML page. Needs no browser and no
+  // network, so it works on any run.json, including an archived one.
+  const src = flag('from', join(homedir(), '.ask-panel', 'last.json'));
+  if (!existsSync(src)) { console.error(`no run file at ${src}`); process.exit(2); }
+  const payload = JSON.parse(readFileSync(src, 'utf8'));
+  const dest = flag('out', src.replace(/\.json$/, '') + '.html');
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, renderHtml(payload));
+  console.log(dest);
+  if (has('open')) spawnSync('open', [dest]);
+  process.exit(0);
+}
 
 if (cmd === 'check') {
   // Instant, browser-free status of a detached run. Exists so no agent ever has

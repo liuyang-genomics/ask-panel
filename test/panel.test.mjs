@@ -145,3 +145,37 @@ test('two runs of the same question never overwrite each other', async () => {
   assert.match(readFileSync(join(first, 'answers.md'), 'utf8'), /FIRST RUN ANSWER/);
   assert.match(readFileSync(join(second, 'answers.md'), 'utf8'), /SECOND RUN ANSWER/);
 });
+
+// --------------------------------------------------------------- html report
+
+test('answer text is escaped, never injected as markup', async () => {
+  // Answers come from third-party sites and land inside our HTML. Treat them
+  // as hostile input regardless of how trustworthy the site looks.
+  const { renderHtml } = await import('../scripts/report.mjs');
+  const html = renderHtml({
+    question: 'Q?',
+    results: [{ site: 'x', label: 'X', status: 'ok', chars: 40, text: '<script>alert(1)</script> & <img src=x onerror=y>' }],
+  });
+  assert.ok(!html.includes('<script>alert(1)</script>'), 'raw script tag must not survive');
+  assert.ok(!html.includes('<img src=x'), 'raw img tag must not survive');
+  assert.match(html, /&lt;script&gt;/);
+});
+
+test('report declares utf-8 so answers do not render as mojibake', async () => {
+  // Regression: without this, smart quotes in answers rendered as "â€œ" when
+  // the file was opened directly or served by a bare static server.
+  const { renderHtml } = await import('../scripts/report.mjs');
+  const html = renderHtml({ question: 'Q?', results: [] });
+  assert.match(html, /<meta charset="utf-8">/i);
+});
+
+test('pipe tables become real tables', async () => {
+  const { renderHtml } = await import('../scripts/report.mjs');
+  const html = renderHtml({
+    question: 'Q?',
+    results: [{ site: 'x', label: 'X', status: 'ok', chars: 99, text: '| Model | Size |\n|---|---|\n| A | 8GB |' }],
+  });
+  assert.match(html, /<th>Model<\/th>/);
+  assert.match(html, /<td>8GB<\/td>/);
+  assert.ok(!html.includes('|---|'), 'the divider row must not leak into output');
+});
