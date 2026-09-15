@@ -45,6 +45,30 @@ stdout, so `> file 2>&1` interleaves them into something that is not valid JSON.
 Split it up if you prefer: `ask` returns in ~10s, then `status`, then
 `collect --out <path>`.
 
+### Fire and forget (default)
+
+Do not block on a panel run and do not poll it. Start it detached, then get on
+with something else:
+
+```bash
+nohup node $S run "<question>" --out ~/.ask-panel/last.json > /dev/null 2>~/.ask-panel/last.log &
+```
+
+It survives the terminal closing, and it archives itself on completion. Check it
+only when the user asks:
+
+```bash
+tail -3 ~/.ask-panel/last.log          # still going, or finished?
+```
+
+```bash
+jq -r '.results[] | "\(.site): \(.status)"' ~/.ask-panel/last.json
+```
+
+If `last.json` does not exist yet, the run is still going. Say so in one line
+and move on - never sleep waiting for it, and never re-run the question to find
+out whether the first one finished.
+
 ### Follow-up questions
 
 ```bash
