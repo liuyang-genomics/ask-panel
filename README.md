@@ -137,3 +137,7 @@ node --test test/                          # unit tests, no browser needed
   comparable tool ships the same warning.
 - It never clicks rating, feedback, consent or upgrade controls, and never
   re-submits a question to rescue a blank answer.
+
+## Licence
+
+MIT - see [LICENSE](LICENSE).
