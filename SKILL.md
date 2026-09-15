@@ -125,27 +125,22 @@ using agreement as a confidence signal:
 Sanity-check facts yourself. Several models agreeing is weak evidence when they
 share training data and cite the same sources.
 
-## Two ways to present a run
+## Presenting a run
 
-Content and surface are separate choices. The synthesis is written by you, the
-agent - no script can turn six answers into one.
+The synthesis is written by you, the agent. No script turns six answers into one.
 
-| Ask | Content | Surface | Command |
-|---|---|---|---|
-| "show panel" | each model separately, raw | HTML page | `report --open` |
-| "show me the result" | your organized answer, evidence below | HTML page | `report --synthesis <md> --open` |
-| "answer" | your organized answer | plain text in the terminal | just write it |
-| - | raw answers as text | terminal | `collect` |
-
-For a synthesis-led page, write your answer to a Markdown file first, then:
+| Ask | What to produce |
+|---|---|
+| "show panel" | write the organized answer to a `.md`, render with `--synthesis`, open the page. The answer leads; the six answers sit beneath it as evidence. |
+| "answer" | the same organized answer, as plain text in the terminal. No page. |
+| (no synthesis yet) | `report --open` alone shows the six raw answers with no lead. |
 
 ```bash
 node $S report --from ~/.ask-panel/last.json --synthesis /tmp/syn.md --open
 ```
 
-It leads with your answer and demotes the per-site answers to evidence beneath
-it, each still carrying its status badge and a link to the live thread, so any
-claim can be checked against the source.
+Each evidence card keeps its status badge and a link to the live thread, so any
+claim in the synthesis can be checked against its source.
 
 ## Runs are archived automatically
 
