@@ -179,3 +179,28 @@ test('pipe tables become real tables', async () => {
   assert.match(html, /<td>8GB<\/td>/);
   assert.ok(!html.includes('|---|'), 'the divider row must not leak into output');
 });
+
+test('cards lead with a summary and keep the full answer available', async () => {
+  const { renderHtml } = await import('../scripts/report.mjs');
+  const long = 'First sentence that summarises it. ' + 'Then a great deal more detail. '.repeat(30);
+  const html = renderHtml({ question: 'Q?', results: [{ site: 'x', label: 'X', status: 'ok', chars: long.length, text: long }] });
+  assert.match(html, /class="peek"/, 'a summary must be rendered');
+  assert.match(html, /<div class="body" id="b0" hidden>/, 'the full body starts hidden');
+  assert.match(html, /First sentence that summarises it\./);
+});
+
+test('an agent-written summary overrides the excerpt', async () => {
+  const { renderHtml } = await import('../scripts/report.mjs');
+  const html = renderHtml(
+    { question: 'Q?', results: [{ site: 'x', label: 'X', status: 'ok', chars: 99, text: 'Raw opening text of the answer.' }] },
+    '', { x: 'Agent-written one-liner.' });
+  assert.match(html, /Agent-written one-liner\./);
+  assert.ok(!/class="peek"[^>]*>Raw opening/.test(html), 'the excerpt must not also appear as the summary');
+});
+
+test('a failed site shows why, and no summary', async () => {
+  const { renderHtml } = await import('../scripts/report.mjs');
+  const html = renderHtml({ question: 'Q?', results: [{ site: 'x', label: 'X', status: 'empty', why: 'render death' }] });
+  assert.match(html, /render death/);
+  assert.ok(!html.includes('class="peek"'), 'nothing to summarise when there is no answer');
+});

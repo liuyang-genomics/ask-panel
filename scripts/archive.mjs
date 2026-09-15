@@ -14,6 +14,7 @@
 import { writeFileSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { renderHtml } from './report.mjs';
 
 export const defaultArchiveDir = () =>
   join(process.env.ASK_PANEL_HOME || join(homedir(), '.ask-panel'), 'runs');
@@ -69,6 +70,9 @@ export function archiveRun(payload, archiveDir = defaultArchiveDir()) {
 
   writeFileSync(join(dir, 'run.json'), JSON.stringify(payload, null, 2));
   writeFileSync(join(dir, 'answers.md'), renderMarkdown(payload, now));
+  // Render the page up front. A finished run should be viewable immediately
+  // rather than needing a second command before anyone can read it.
+  writeFileSync(join(dir, 'report.html'), renderHtml(payload));
 
   const results = payload.results || [];
   const { good } = countAnswers(results);

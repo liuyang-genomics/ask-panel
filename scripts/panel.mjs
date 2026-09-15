@@ -98,6 +98,10 @@ function emit(payload) {
   if (dest) {
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, json);
+    // Sibling HTML, always. Nobody reads six answers as raw JSON.
+    const html = dest.replace(/\.json$/, '') + '.html';
+    try { writeFileSync(html, renderHtml(payload)); process.stderr.write(`page ${html}\n`); }
+    catch (e) { process.stderr.write(`report failed: ${e.message}\n`); }
   } else {
     console.log(json);
   }
@@ -124,9 +128,11 @@ if (cmd === 'report') {
   const payload = JSON.parse(readFileSync(src, 'utf8'));
   const synFile = flag('synthesis', null);
   const syn = synFile && existsSync(synFile) ? readFileSync(synFile, 'utf8') : '';
+  const sumFile = flag('summaries', null);
+  const sums = sumFile && existsSync(sumFile) ? JSON.parse(readFileSync(sumFile, 'utf8')) : {};
   const dest = flag('out', src.replace(/\.json$/, '') + '.html');
   mkdirSync(dirname(dest), { recursive: true });
-  writeFileSync(dest, renderHtml(payload, syn));
+  writeFileSync(dest, renderHtml(payload, syn, sums));
   console.log(dest);
   if (has('open')) spawnSync('open', [dest]);
   process.exit(0);

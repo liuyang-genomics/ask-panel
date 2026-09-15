@@ -135,9 +135,17 @@ The synthesis is written by you, the agent. No script turns six answers into one
 | "answer" | the same organized answer, as plain text in the terminal. No page. |
 | (no synthesis yet) | `report --open` alone shows the six raw answers with no lead. |
 
+Every run writes its page automatically: `--out x.json` also produces `x.html`,
+and each archived run gets a `report.html`. No second command needed to look at
+a result.
+
 ```bash
 node $S report --from ~/.ask-panel/last.json --synthesis /tmp/syn.md --open
 ```
+
+Cards open on a summary so six answers can be scanned at once; "full" expands
+one, "Full answers" expands all. Pass `--summaries <json>` (a `{site: "one
+line"}` map) to replace the auto-excerpt with summaries you wrote.
 
 Each evidence card keeps its status badge and a link to the live thread, so any
 claim in the synthesis can be checked against its source.

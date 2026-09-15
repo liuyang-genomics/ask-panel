@@ -70,9 +70,28 @@ function markdown(src) {
   return out.join('\n');
 }
 
+/** First couple of sentences, for scanning. Honest truncation, not analysis. */
+function excerpt(text, max = 260) {
+  // Prose only. These answers are full of tables and headings, and flattening
+  // those produces "| Model | Size | |---|---|" where a summary should be.
+  const prose = String(text || '')
+    .split('\n')
+    .filter((l) => !/^\s*#+\s/.test(l))          // headings
+    .filter((l) => !/^[\s|:-]*\|/.test(l))        // table rows
+    .filter((l) => !/^[\s|:-]+$/.test(l))          // table dividers and rules
+    .filter((l) => !/^\s*```/.test(l))             // code fences
+    .map((l) => l.replace(/^\s*[-*]\s+/, '').replace(/^\s*\d+[.)]\s+/, ''))
+    .join(' ');
+  const flat = prose.replace(/[*`#]/g, '').replace(/\s+/g, ' ').trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max);
+  const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
+  return (stop > max * 0.5 ? cut.slice(0, stop + 1) : cut.trimEnd() + '\u2026');
+}
+
 const BADGE = { ok: 'ok', empty: 'bad', error: 'bad', 'no-tab': 'muted' };
 
-export function renderHtml(payload, synthesis = '') {
+export function renderHtml(payload, synthesis = '', summaries = {}) {
   const results = payload.results || [];
   const good = results.filter((r) => r.status === 'ok' && !r.fallback);
   const when = new Date().toISOString().slice(0, 16).replace('T', ' ');
@@ -87,6 +106,8 @@ export function renderHtml(payload, synthesis = '') {
   const cards = results.map((r, i) => {
     const kind = r.fallback ? 'warn' : (BADGE[r.status] || 'muted');
     const label = r.fallback ? 'fallback - distrust' : r.status;
+    const given = summaries[r.site];
+    const sum = r.status === 'ok' ? (given || excerpt(r.text)) : '';
     const body = r.status === 'ok'
       ? markdown(r.text)
       : `<p class="none">${esc(r.why || 'no answer')}</p>`;
@@ -97,9 +118,10 @@ export function renderHtml(payload, synthesis = '') {
         ${r.chars ? `<span class="meta">${r.chars.toLocaleString()} chars</span>` : ''}
         ${r.recovered ? '<span class="meta">reloaded</span>' : ''}
         ${r.url ? `<a class="meta link" href="${esc(r.url)}" target="_blank" rel="noopener">thread</a>` : ''}
-        <button class="fold" data-i="${i}" aria-expanded="true">collapse</button>
+        <button class="fold" data-i="${i}" aria-expanded="false">full</button>
       </header>
-      <div class="body" id="b${i}">${body}</div>
+      ${sum ? `<p class="peek" id="s${i}"${given ? '' : ' data-excerpt="1"'}>${inline(sum)}</p>` : ''}
+      <div class="body" id="b${i}"${sum ? ' hidden' : ''}>${body}</div>
     </article>`;
   }).join('\n');
 
@@ -126,7 +148,7 @@ export function renderHtml(payload, synthesis = '') {
   }
   *{box-sizing:border-box}
   body{background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
-       padding-block:28px;padding-left:20px;padding-right:20px;max-width:1500px;margin:0 auto}
+       padding-block:28px;padding-left:20px;padding-right:20px;max-width:1900px;margin:0 auto}
   h1{font-size:21px;line-height:1.35;margin:0 0 10px;font-weight:650}
   .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
   .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:22px}
@@ -135,7 +157,14 @@ export function renderHtml(payload, synthesis = '') {
   button:hover{border-color:var(--accent)}
   button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
   .grid{display:grid;gap:16px}
-  .grid.cols{grid-template-columns:repeat(auto-fit,minmax(330px,1fr));align-items:start}
+  /* True side-by-side: every answer is a column of the same width, so they can
+     be read against each other. Auto-fit wrapped six cards into 4+2, which is
+     not a comparison. Columns stay readable and the strip scrolls sideways
+     instead of shrinking them into unreadability. */
+  .grid.cols{grid-auto-flow:column;grid-auto-columns:minmax(340px,1fr);
+             overflow-x:auto;padding-bottom:8px;align-items:stretch}
+  .grid.cols .card{display:flex;flex-direction:column;max-height:76vh}
+  .grid.cols .body{overflow-y:auto}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;overflow:hidden}
   .card header{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:12px 15px;border-bottom:1px solid var(--line)}
   .card h2{font-size:15px;margin:0;font-weight:650}
@@ -154,6 +183,8 @@ export function renderHtml(payload, synthesis = '') {
   th,td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
   th{background:var(--bg);font-weight:650}
   .none{color:var(--dim);font-style:italic}
+  .peek{margin:0;padding:12px 15px 14px;font-size:13.5px;color:var(--dim);line-height:1.55}
+  .peek[hidden]{display:none}
   .lead{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
         border-radius:11px;padding:6px 22px 18px;margin-bottom:30px}
   .lead h3,.lead h4{font-size:16px;margin:20px 0 7px;font-weight:650}
@@ -161,7 +192,12 @@ export function renderHtml(payload, synthesis = '') {
   .lead table{font-size:13px}
   .sectionhead{font-size:15px;margin:0 0 4px;font-weight:650}
   .sectionsub{color:var(--dim);font-size:12.5px;margin:0 0 16px}
-  @media (max-width:700px){ .grid.cols{grid-template-columns:1fr} }
+  /* No horizontal strip on a phone: one column, full height, normal scrolling. */
+  @media (max-width:700px){
+    .grid.cols{grid-auto-flow:row;grid-auto-columns:auto;overflow-x:visible}
+    .grid.cols .card{max-height:none}
+    .grid.cols .body{overflow-y:visible}
+  }
 </style>
 
 <h1>${esc(payload.question || 'Panel')}</h1>
@@ -170,7 +206,7 @@ export function renderHtml(payload, synthesis = '') {
 <div class="bar">
   <button id="layout" aria-pressed="true">Side by side</button>
   <button id="only" aria-pressed="false">Only answered</button>
-  <button id="foldall">Collapse all</button>
+  <button id="foldall" aria-pressed="false">Full answers</button>
   <button id="theme">Theme</button>
 </div>
 
@@ -180,35 +216,57 @@ ${cards}
 </div>
 
 <script>
+  // Per-viewer conveniences only; the page must render correctly when storage
+  // is unavailable (private window, blocked site data), so every access is guarded.
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('ask-panel:' + k); return v === null ? d : v === '1'; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('ask-panel:' + k, v ? '1' : '0'); } catch {} },
+  };
+
   const grid = document.getElementById('grid');
   const layout = document.getElementById('layout');
-  layout.onclick = () => {
-    const cols = grid.classList.toggle('cols');
+  const setLayout = (cols, persist) => {
+    grid.classList.toggle('cols', cols);
     layout.setAttribute('aria-pressed', cols);
     layout.textContent = cols ? 'Side by side' : 'Stacked';
+    if (persist) store.set('cols', cols);
   };
+  // Side by side is the default and the point of the page: six answers are for
+  // comparing, and stacking them turns the comparison back into scrolling.
+  setLayout(store.get('cols', true), false);
+  layout.onclick = () => setLayout(!grid.classList.contains('cols'), true);
+
   const only = document.getElementById('only');
-  only.onclick = () => {
-    const on = only.getAttribute('aria-pressed') !== 'true';
+  const setOnly = (on, persist) => {
     only.setAttribute('aria-pressed', on);
     for (const c of grid.children) c.hidden = on && c.dataset.ok !== '1';
+    if (persist) store.set('only', on);
+  };
+  setOnly(store.get('only', false), false);
+  only.onclick = () => setOnly(only.getAttribute('aria-pressed') !== 'true', true);
+  // Cards open on a summary so six answers can be scanned at a glance; the full
+  // text is one click away per card, or all at once.
+  const setCard = (b, full) => {
+    const body = document.getElementById('b' + b.dataset.i);
+    const peek = document.getElementById('s' + b.dataset.i);
+    if (!peek) return;
+    body.hidden = !full;
+    peek.hidden = full;
+    b.textContent = full ? 'summary' : 'full';
+    b.setAttribute('aria-expanded', full);
   };
   for (const b of document.querySelectorAll('.fold')) {
-    b.onclick = () => {
-      const body = document.getElementById('b' + b.dataset.i);
-      body.hidden = !body.hidden;
-      b.textContent = body.hidden ? 'expand' : 'collapse';
-      b.setAttribute('aria-expanded', !body.hidden);
-    };
+    b.onclick = () => setCard(b, b.getAttribute('aria-expanded') !== 'true');
   }
-  document.getElementById('foldall').onclick = (e) => {
-    const collapse = e.target.textContent === 'Collapse all';
-    for (const b of document.querySelectorAll('.fold')) {
-      const body = document.getElementById('b' + b.dataset.i);
-      if (body.hidden !== collapse) b.click();
-    }
-    e.target.textContent = collapse ? 'Expand all' : 'Collapse all';
+  const all = document.getElementById('foldall');
+  const setAll = (full, persist) => {
+    for (const b of document.querySelectorAll('.fold')) setCard(b, full);
+    all.textContent = full ? 'Summaries' : 'Full answers';
+    all.setAttribute('aria-pressed', full);
+    if (persist) store.set('full', full);
   };
+  setAll(store.get('full', false), false);
+  all.onclick = () => setAll(all.getAttribute('aria-pressed') !== 'true', true);
   document.getElementById('theme').onclick = () => {
     const now = document.documentElement.getAttribute('data-theme');
     const dark = now ? now === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
